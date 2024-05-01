@@ -10,8 +10,9 @@ typedef struct
 {
     // might need "display" 64x32 attribute but not sure
     // keypad??
-    uint8_t memory[4096];  // 4096 kilobyte memory
-    uint16_t stack[32];    // 64 byte stack
+    uint8_t memory[4096];  // 4096 byte memory
+    uint16_t stack[1024];  // 2048 byte stack (note I made this big since i have no constraint to worry about but the offical one is 64 bytes
+    uint8_t stackIndex;    // index for the implementation of stack
     uint16_t pc;           // program counter
     uint16_t ir;           // index register (also referred to as I) used to point at location in memory
     uint8_t dtimer;        // delay timer (decremented at a rate of 60HZ until 0)
@@ -27,16 +28,35 @@ void startEmulator(Emulator *em);                 // perform initilizations
 void startProgram(Emulator *em, const char *ROM); // load program into memory, I will most likely add support to close and open different chip8 programs
 void printMemory(Emulator *em);                   // read memory (for debugging)
 
+void pushStack(Emulator *em, uint16_t pc);
+uint16_t popStack(Emulator *em);
+
 // The three stages (merged decode and execute into one function)
-uint16_t fetch(Emulator *em); // returns the instruction pc is currently pointing at and increments pc by 2
+uint16_t
+fetch(Emulator *em); // returns the instruction pc is currently pointing at and increments pc by 2
 void decode_execute(Emulator *em, uint16_t inst);
 
 // instructions (i decided to make a function for each one just to keep it clean even if it was really small)
-void clearScreen(Emulator *em);                     // clears screen
-void jump(Emulator *em, uint16_t inst);             // changes pc to jump address
-void setReg(Emulator *em, uint16_t inst);           // set register vx to NN
-void addReg(Emulator *em, uint16_t inst);           // add value NN to register vx
-void setIndexRegister(Emulator *em, uint16_t inst); // set register I to NNN
-void draw(Emulator *em, uint16_t inst);             // draw an N tall sprite from I to x,y.
+void clearScreen(Emulator *em);                                    // clears screen
+void jump(Emulator *em, uint16_t inst);                            // changes pc to jump address
+void setXNN(Emulator *em, uint16_t inst);                          // set register vx to NN
+void addXNN(Emulator *em, uint16_t inst);                          // add value NN to register vx
+void setIndexRegister(Emulator *em, uint16_t inst);                // set register I to NNN
+void draw(Emulator *em, uint16_t inst);                            // draw an N tall sprite from I to vx,vy.
+void skipNNEqual(Emulator *em, uint16_t inst);                     // if vx == NN skip next inst
+void skipNNNotEqual(Emulator *em, uint16_t inst);                  // if vx != NN skip next inst
+void skipXYEqual(Emulator *em, uint16_t inst);                     // if vx== vy skip next inst
+void skipXYNotEqual(Emulator *em, uint16_t inst);                  // if vx!= vy skip next inst
+void callNNN(Emulator *em, uint16_t inst);                         // push curr pc to stack then pc == NNN
+void returnCall(Emulator *em);                                     // set pc to popped value of stack
+void setXY(Emulator *em, uint16_t inst);                           // vx = vy
+void setXorY(Emulator *em, uint16_t inst);                         // vx |= vy
+void setXandY(Emulator *em, uint16_t inst);                        // vx &= vy
+void setXxorY(Emulator *em, uint16_t inst);                        // vx ^= vy
+void setXplusY(Emulator *em, uint16_t inst);                       // vx += vy carry flag affected
+void setXminusY(Emulator *em, uint16_t inst);                      // vx -= vy
+void setXYminusX(Emulator *em, uint16_t inst);                     // vx = vy-vx
+void setXShiftRightOneY(Emulator *em, uint16_t inst, uint8_t new); // vx = vy>>1
+void setXShiftLeftOneY(Emulator *em, uint16_t inst, uint8_t new);  // vx = vy<<1
 
 #endif /* EMULATOR_H */

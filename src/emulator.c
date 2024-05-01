@@ -23,6 +23,10 @@ void startEmulator(Emulator *em)
     {
         em->memory[i] = 0;
     }
+    for (int i = 0; i < 32; i++)
+    {
+        em->stack[i] = 0;
+    }
     for (int i = 0; i < 80; i++)
     {
         em->memory[0x50 + i] = emulatorFont[i]; // storing fonts from 0x50–0x90 which is the most popular place to store it
@@ -52,7 +56,7 @@ void startEmulator(Emulator *em)
         }
         if (!checkPlay) // using this since later on ill allow user to select a file if nothing is loaded in
         {
-            startProgram(em, "IBMLogo.ch8");
+            startProgram(em, "alotoftests.ch8");
             printMemory(em);
             checkPlay = 1;
         }
@@ -72,6 +76,27 @@ void printMemory(Emulator *em)
     {
         printf("%02x ", em->memory[i]);
     }
+}
+
+// push on stack from left to right and pop from right to left
+void pushStack(Emulator *em, uint16_t pc)
+{
+    if (em->stackIndex >= 1024)
+    {
+        printf("ERROR: Stack Overflow, exiting program.");
+        exit(0);
+    }
+    em->stack[em->stackIndex++] = pc;
+}
+
+uint16_t popStack(Emulator *em)
+{
+    if (em->stackIndex == 0)
+    {
+        printf("ERROR: Nothing in stack, exiting program.");
+        exit(0);
+    }
+    return em->stack[--em->stackIndex];
 }
 
 void startProgram(Emulator *em, const char *ROM)
@@ -124,17 +149,65 @@ void decode_execute(Emulator *em, uint16_t inst)
         }
         else if (inst == 0x00EE) // 00EE =modern programs dont implement the other 0x0 functions but ill keep it as else if just incase i do them anyway
         {
-            // implement return
+            returnCall(em);
         }
         break;
     case 0x1:
         jump(em, inst);
         break;
+    case 0x2:
+        callNNN(em, inst);
+        break;
+    case 0x3:
+        skipNNEqual(em, inst);
+        break;
+    case 0x4:
+        skipNNNotEqual(em, inst);
+        break;
+    case 0x5:
+        skipXYEqual(em, inst);
+        break;
     case 0x6:
-        setReg(em, inst);
+        setXNN(em, inst);
         break;
     case 0x7:
-        addReg(em, inst);
+        addXNN(em, inst);
+        break;
+    case 0x8:
+        uint8_t leastSig = inst & (0x000F);
+        switch (leastSig)
+        {
+        case 0x0:
+            setXY(em, inst);
+            break;
+        case 0x1:
+            setXorY(em, inst);
+            break;
+        case 0x2:
+            setXandY(em, inst);
+            break;
+        case 0x3:
+            setXxorY(em, inst);
+            break;
+        case 0x4:
+            setXplusY(em, inst);
+            break;
+        case 0x5:
+            setXminusY(em, inst);
+            break;
+        case 0x6:
+            setXShiftRightOneY(em, inst, 0); // this is an ambgious inst it changes depending on chip8 version
+            break;
+        case 0x7:
+            setXYminusX(em, inst);
+            break;
+        case 0xE:
+            setXShiftLeftOneY(em, inst, 0); // this is an ambgious inst it changes depending on chip8 version
+            break;
+        }
+        break;
+    case 0x9:
+        skipXYNotEqual(em, inst);
         break;
     case 0xA:
         setIndexRegister(em, inst);
@@ -144,12 +217,13 @@ void decode_execute(Emulator *em, uint16_t inst)
         break;
     default:
         printf("%x is unimplemented.\n", firstNib);
+        break;
     }
 }
 
 // Instructions
 
-void clearScreen(Emulator *em)
+void clearScreen(Emulator *em) // 00E0
 {
     SDL_SetRenderDrawColor(em->rend, 0, 0, 0, 255); // setting color to opaque black
     SDL_RenderClear(em->rend);
@@ -160,11 +234,11 @@ void jump(Emulator *em, uint16_t inst) // 1NNN
 {
     em->pc = inst & 0x0FFF;
 }
-void setReg(Emulator *em, uint16_t inst) // 6XNN
+void setXNN(Emulator *em, uint16_t inst) // 6XNN
 {
     em->registers[(inst & 0x0F00) >> 8] = inst & 0x00FF; // store the last 8 bits in register of X which is bit 8->11
 }
-void addReg(Emulator *em, uint16_t inst) // 7XNN
+void addXNN(Emulator *em, uint16_t inst) // 7XNN
 {
     em->registers[(inst & 0x0F00) >> 8] += (inst & 0x00FF); // add the last 8 bits to register of X which is bit 8->11 (no overflow for this instruction)
 }
@@ -211,4 +285,145 @@ void draw(Emulator *em, uint16_t inst) // DXYN
         }
         SDL_RenderPresent(em->rend);
     }
+}
+
+void skipNNEqual(Emulator *em, uint16_t inst) // 3XNN
+{
+    uint8_t vx = em->registers[(inst & 0x0F00) >> 8];
+    uint8_t NN = (inst & 0x00FF);
+
+    if (vx == NN)
+    {
+        em->pc = em->pc + 2; // in fetch stage we already did pc + 2 so we can just do it again to skip next inst
+    }
+}
+void skipNNNotEqual(Emulator *em, uint16_t inst) // 4XNN
+{
+    uint8_t vx = em->registers[(inst & 0x0F00) >> 8];
+    uint8_t NN = (inst & 0x00FF);
+
+    if (vx != NN)
+    {
+        em->pc = em->pc + 2; // in fetch stage we already did pc + 2 so we can just do it again to skip next inst
+    }
+}
+void skipXYEqual(Emulator *em, uint16_t inst) // 5XY0
+{
+    uint8_t vx = em->registers[(inst & 0x0F00) >> 8];
+    uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
+
+    if (vx == vy)
+    {
+        em->pc = em->pc + 2; // in fetch stage we already did pc + 2 so we can just do it again to skip next inst
+    }
+}
+void skipXYNotEqual(Emulator *em, uint16_t inst) // 9XY0
+{
+    uint8_t vx = em->registers[(inst & 0x0F00) >> 8];
+    uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
+
+    if (vx != vy)
+    {
+        em->pc = em->pc + 2; // in fetch stage we already did pc + 2 so we can just do it again to skip next inst
+    }
+}
+
+void callNNN(Emulator *em, uint16_t inst) // 2NNN
+{
+    pushStack(em, em->pc);    // first store the pc onto the stack
+    em->pc = inst & (0x0FFF); // then set pc to NNN
+}
+
+void returnCall(Emulator *em) // 00EE
+{
+    em->pc = popStack(em); // take value from stack and set pc to it
+}
+
+void setXY(Emulator *em, uint16_t inst) // 8xy0
+{
+    em->registers[(inst & 0x0F00) >> 8] = em->registers[(inst & 0x00F0) >> 4];
+}
+void setXorY(Emulator *em, uint16_t inst) // 8xy1
+{
+    em->registers[(inst & 0x0F00) >> 8] |= em->registers[(inst & 0x00F0) >> 4];
+}
+void setXandY(Emulator *em, uint16_t inst) // 8xy2
+{
+    em->registers[(inst & 0x0F00) >> 8] &= em->registers[(inst & 0x00F0) >> 4];
+}
+void setXxorY(Emulator *em, uint16_t inst) // 8xy3
+{
+    em->registers[(inst & 0x0F00) >> 8] ^= em->registers[(inst & 0x00F0) >> 4];
+}
+void setXplusY(Emulator *em, uint16_t inst) // 8xy4
+{
+    uint16_t x = (inst & 0x0F00) >> 8;
+    uint16_t sum = em->registers[x] + em->registers[(inst & 0x00F0) >> 8];
+    // according to specs if theres an overflow set flag to 1 otherwise set to 0
+    if (sum > 255)
+    {
+        em->registers[0xF] = 1;
+        em->registers[x] = 255;
+    }
+    else
+    {
+        em->registers[0xF] = 0;
+        em->registers[x] = sum;
+    }
+}
+void setXminusY(Emulator *em, uint16_t inst) // 8xy5
+{
+    uint8_t x = (inst & 0x0F00) >> 8;
+    uint8_t vx = em->registers[x];
+    uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
+    // according to specs if first larger than second flag to 1 otherwise flag to 0
+    if (vx > vy)
+    {
+        em->registers[0xF] = 1;
+    }
+    else
+    {
+        em->registers[0xF] = 0;
+    }
+    em->registers[x] = vx - vy;
+}
+void setXYminusX(Emulator *em, uint16_t inst) // 8xy7
+{
+    uint8_t x = (inst & 0x0F00) >> 8;
+    uint8_t vx = em->registers[x];
+    uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
+    // according to specs if first larger than second flag to 1 otherwise flag to 0
+    if (vy > vx)
+    {
+        em->registers[0xF] = 1;
+    }
+    else
+    {
+        em->registers[0xF] = 0;
+    }
+    em->registers[x] = vy - vx;
+}
+
+void setXShiftRightOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xy6
+{
+    if (!new)
+    {
+        setXY(em, inst); // this line is removed for some chip8 implementations
+    }
+    uint8_t x = (inst & 0x0F00) >> 8;
+    uint8_t vx = em->registers[x];
+    em->registers[0xF] = vx & 0x01; // setting flag to the bit that will be shifted out
+    em->registers[x] >>= 1;         // shift
+}
+
+void setXShiftLeftOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xyE
+{
+    if (!new)
+    {
+        setXY(em, inst); // this line is removed for some chip8 implementations
+    }
+    uint8_t x = (inst & 0x0F00) >> 8;
+    uint8_t vx = em->registers[x];
+    em->registers[0xF] = vx & 0x8; // setting flag to the bit that will be shifted out (0b1000 0000)
+    em->registers[x] <<= 1;        // shift
 }
