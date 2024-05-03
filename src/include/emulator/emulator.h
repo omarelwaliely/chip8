@@ -41,7 +41,7 @@ void clearScreen(Emulator *em);                                    // clears scr
 void jump(Emulator *em, uint16_t inst);                            // changes pc to jump address
 void setXNN(Emulator *em, uint16_t inst);                          // set register vx to NN
 void addXNN(Emulator *em, uint16_t inst);                          // add value NN to register vx
-void setIndexRegister(Emulator *em, uint16_t inst);                // set register I to NNN
+void setIndexRegisterNNN(Emulator *em, uint16_t inst);             // set register I to NNN
 void draw(Emulator *em, uint16_t inst);                            // draw an N tall sprite from I to vx,vy.
 void skipNNEqual(Emulator *em, uint16_t inst);                     // if vx == NN skip next inst
 void skipNNNotEqual(Emulator *em, uint16_t inst);                  // if vx != NN skip next inst
@@ -58,5 +58,9 @@ void setXminusY(Emulator *em, uint16_t inst);                      // vx -= vy
 void setXYminusX(Emulator *em, uint16_t inst);                     // vx = vy-vx
 void setXShiftRightOneY(Emulator *em, uint16_t inst, uint8_t new); // vx = vy>>1
 void setXShiftLeftOneY(Emulator *em, uint16_t inst, uint8_t new);  // vx = vy<<1
+void storeUntilX(Emulator *em, uint16_t inst, uint8_t new);        // store from v0 to vx in memory starting at address I
+void loadUntilX(Emulator *em, uint16_t inst, uint8_t new);         // load into v0 to vx from memory starting at address I
+void storeBCD(Emulator *em, uint16_t inst);                        // store the value in vx as a Decimal number with mem[I],mem[I+1],mem[I+2] containing hundreds,tens,ones
+void addIndexRegisterX(Emulator *em, uint16_t inst);               // Add vx to I carry flag not affected
 
 #endif /* EMULATOR_H */
