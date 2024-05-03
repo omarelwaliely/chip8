@@ -56,7 +56,7 @@ void startEmulator(Emulator *em)
         }
         if (!checkPlay) // using this since later on ill allow user to select a file if nothing is loaded in
         {
-            startProgram(em, "alotoftests.ch8");
+            startProgram(em, "testwflag.ch8");
             printMemory(em);
             checkPlay = 1;
         }
@@ -223,10 +223,10 @@ void decode_execute(Emulator *em, uint16_t inst)
             storeBCD(em, inst);
             break;
         case 0x55:
-            storeUntilX(em, inst, 0); // this is an ambgious inst it changes depending on chip8 version
+            storeUntilX(em, inst, 1); // this is an ambgious inst it changes depending on chip8 version
             break;
         case 0x65:
-            loadUntilX(em, inst, 0); // this is an ambgious inst it changes depending on chip8 version
+            loadUntilX(em, inst, 1); // this is an ambgious inst it changes depending on chip8 version
             break;
         case 0x1E:
             addIndexRegisterX(em, inst);
@@ -378,8 +378,8 @@ void setXplusY(Emulator *em, uint16_t inst) // 8xy4
     uint8_t x = (inst & 0x0F00) >> 8;
     uint8_t vx = em->registers[x];
     uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
-    uint8_t sum = vx + vy;
-    // according to specs if first larger than second flag to 1 otherwise flag to 0
+    uint16_t sum = vx + vy;
+    em->registers[x] = sum;
     if (sum > 255)
     {
         em->registers[0xF] = 1;
@@ -388,7 +388,6 @@ void setXplusY(Emulator *em, uint16_t inst) // 8xy4
     {
         em->registers[0xF] = 0;
     }
-    em->registers[x] = sum;
 }
 void setXminusY(Emulator *em, uint16_t inst) // 8xy5
 {
@@ -396,7 +395,9 @@ void setXminusY(Emulator *em, uint16_t inst) // 8xy5
     uint8_t vx = em->registers[x];
     uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
     // according to specs if first larger than second flag to 1 otherwise flag to 0
-    if (vx > vy)
+    em->registers[x] = vx - vy;
+
+    if (vx >= vy)
     {
         em->registers[0xF] = 1;
     }
@@ -404,7 +405,6 @@ void setXminusY(Emulator *em, uint16_t inst) // 8xy5
     {
         em->registers[0xF] = 0;
     }
-    em->registers[x] = vx - vy;
 }
 void setXYminusX(Emulator *em, uint16_t inst) // 8xy7
 {
@@ -412,7 +412,9 @@ void setXYminusX(Emulator *em, uint16_t inst) // 8xy7
     uint8_t vx = em->registers[x];
     uint8_t vy = em->registers[(inst & 0x00F0) >> 4];
     // according to specs if first larger than second flag to 1 otherwise flag to 0
-    if (vy > vx)
+    em->registers[x] = vy - vx;
+
+    if (vy >= vx)
     {
         em->registers[0xF] = 1;
     }
@@ -420,7 +422,6 @@ void setXYminusX(Emulator *em, uint16_t inst) // 8xy7
     {
         em->registers[0xF] = 0;
     }
-    em->registers[x] = vy - vx;
 }
 
 void setXShiftRightOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xy6
@@ -431,8 +432,10 @@ void setXShiftRightOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xy6
     }
     uint8_t x = (inst & 0x0F00) >> 8;
     uint8_t vx = em->registers[x];
-    em->registers[0xF] = vx & 0x01; // setting flag to the bit that will be shifted out
-    em->registers[x] >>= 1;         // shift
+    uint8_t val = vx >> 1;
+    uint8_t shifted = (vx) & 0x01;
+    em->registers[x] = val;
+    em->registers[0xF] = shifted; // setting flag to the bit that will be shifted out
 }
 
 void setXShiftLeftOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xyE
@@ -443,8 +446,10 @@ void setXShiftLeftOneY(Emulator *em, uint16_t inst, uint8_t new) // 8xyE
     }
     uint8_t x = (inst & 0x0F00) >> 8;
     uint8_t vx = em->registers[x];
-    em->registers[0xF] = vx & 0x8; // setting flag to the bit that will be shifted out (0b1000 0000)
-    em->registers[x] <<= 1;        // shift
+    uint8_t val = vx << 1;
+    uint8_t shifted = (vx & 0x80) >> 7; // 1000 0000
+    em->registers[x] = val;
+    em->registers[0xF] = shifted; // setting flag to the bit that will be shifted out
 }
 void storeBCD(Emulator *em, uint16_t inst) // FX33
 {
@@ -464,7 +469,7 @@ void storeUntilX(Emulator *em, uint16_t inst, uint8_t new) // FX55
         em->memory[i + em->ir] = em->registers[i];
     if (!new)
     {
-        em->ir = em->ir + x;
+        em->ir += x;
     }
 }
 
@@ -477,7 +482,7 @@ void loadUntilX(Emulator *em, uint16_t inst, uint8_t new) // FX65
     }
     if (!new)
     {
-        em->ir = em->ir + x;
+        em->ir += x;
     }
 }
 void addIndexRegisterX(Emulator *em, uint16_t inst) // FX1E
