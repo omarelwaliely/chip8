@@ -32,7 +32,7 @@ void startEmulator(Emulator *em)
         em->memory[0x50 + i] = emulatorFont[i]; // storing fonts from 0x50–0x90 which is the most popular place to store it
     }
     SDL_Init(SDL_INIT_EVERYTHING);
-    em->window = SDL_CreateWindow("Chip-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 320, SDL_WINDOW_ALLOW_HIGHDPI);
+    em->window = SDL_CreateWindow("Chip-8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 320, SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     if (em->window == NULL)
     {
         printf("Could not create window %s \n", SDL_GetError());
@@ -287,9 +287,10 @@ void draw(Emulator *em, uint16_t inst) // DXYN
             uint8_t r, g, b; // since there is only white and black i only need one of these to figure out if its on or off
             SDL_GetRGB(pixel, SDL_GetWindowSurface(em->window)->format, &r, &g, &b);
             uint8_t currPixel = spriteRByte & (0x80 >> j); // start at 1000_0000 then shift right by col ie next 0100_0000 , so this is used to get pixel starting from left to right
+            printf("%d, %d, %d\n", r, g, b);
             if (currPixel)
             {
-                if (r == 1) // if both are one we set pixel to white and vf flag to 1
+                if ((r == 255) && (g == 255) && (b == 255)) // if both are one we set pixel to white and vf flag to 1
                 {
                     SDL_SetRenderDrawColor(em->rend, 0, 0, 0, 255); // turn off
                     em->registers[0xF] = 1;
